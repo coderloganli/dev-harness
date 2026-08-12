@@ -160,17 +160,24 @@ can exercise themselves: the command, the URL, the input to try. Then
 `advance_stage`.
 
 If the user declines, ask them one question — is this a design problem or an
-implementation problem? — and return to stage 3 or stage 7 accordingly.
+implementation problem? — then call `return_to_stage` with 3 or 7 and their reason.
 
 ## Stage 10 — Pull request — DIALOG
 
 Call `advance_stage`. One dialog covers the whole stage; the user accepted the
 feature at stage 9 and this stage sends it out.
 
-Then, in each repository the task touched: commit with a message describing the
-change and why, push the branch, and open a pull request.
+Once it is authorised, in each repository the task touched: commit with a message
+describing the change and why, push the branch, and open a pull request. Then call
+`finish_task` with the pull request URLs.
 
 Leave the workspace where it is. Do not delete it, and do not remove the worktrees.
+
+## If the task is dropped
+
+If the user decides at any point not to go on with the task, call `abandon_task`
+with their reason. Nothing is deleted; only the ticket changes. Do not abandon a
+task on your own initiative — ask.
 
 ## Rules that hold in every stage
 

@@ -23,6 +23,10 @@ import {
 
 // ---------------------------------------------------------------- transport
 
+// Workspaces with an advance_stage in flight. A stage that raises a dialog stays
+// open until the user answers, so a second advance is turned away, not queued.
+const advancing = new Set();
+
 const pending = new Map();
 let nextRequestId = 1;
 
@@ -175,14 +179,55 @@ const TOOLS = [
   {
     name: 'find_ticket',
     description:
-      'Search tickets by what the task was about. Returns the workspace to return to and the session id to resume.',
+      'Search tickets by what the task was about, or list them all when no query is given. ' +
+      'Returns the workspace to return to and the session id to resume.',
     inputSchema: {
       type: 'object',
       properties: {
         cwd: { type: 'string' },
-        query: { type: 'string' },
+        query: { type: 'string', description: 'Words from the task description. Omit to list everything.' },
+        status: { type: 'string', enum: ['active', 'done', 'abandoned'] },
       },
-      required: ['query'],
+    },
+  },
+  {
+    name: 'return_to_stage',
+    description:
+      'Send the current task back to an earlier stage, with a reason. Used after the user declines ' +
+      'at stage 9 and says whether it is a design problem or an implementation problem.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string' },
+        stage: { type: 'number', description: 'The stage to return to. Must be earlier than the current one.' },
+        reason: { type: 'string', description: "The user's words about what is wrong." },
+      },
+      required: ['stage', 'reason'],
+    },
+  },
+  {
+    name: 'finish_task',
+    description: 'Mark the task done once the pull requests are open. Call at the end of stage 10.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string' },
+        pull_requests: { type: 'array', items: { type: 'string' }, description: 'One URL per repository.' },
+      },
+    },
+  },
+  {
+    name: 'abandon_task',
+    description:
+      'Mark the task abandoned, with a reason. The workspace and its worktrees are left alone; ' +
+      'only the ticket changes. Ask the user before calling this.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string' },
+        reason: { type: 'string' },
+      },
+      required: ['reason'],
     },
   },
 ];
@@ -245,20 +290,25 @@ async function callTool(name, args = {}) {
   const { project, workspace, ticket } = context(cwd);
   if (name === 'find_ticket') {
     if (!project) return fail(`No dev-harness project found from ${cwd}.`);
-    const words = args.query.toLowerCase().split(/\s+/).filter(Boolean);
-    const scored = allTickets(project)
-      .map((t) => {
-        const hay = `${t.branch} ${t.description}`.toLowerCase();
-        return { t, score: words.filter((w) => hay.includes(w)).length };
-      })
-      .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-    if (!scored.length) return ok('No ticket matched.');
+    const words = (args.query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+    let rows = allTickets(project).filter((t) => !args.status || t.status === args.status);
+
+    if (words.length) {
+      rows = rows
+        .map((t) => ({ t, score: words.filter((w) => `${t.branch} ${t.description}`.toLowerCase().includes(w)).length }))
+        .filter((r) => r.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((r) => r.t);
+    } else {
+      rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    }
+
+    if (!rows.length) return ok(words.length ? 'No ticket matched.' : 'No tickets yet.');
     return ok(
-      scored
+      rows
+        .slice(0, 20)
         .map(
-          ({ t }) =>
+          (t) =>
             `${t.branch} — ${t.status}, ${describe(t.stage)}\n  ${t.description}\n  workspace: ${t.workspace}\n  session: ${t.session_id ?? '(not recorded)'}`,
         )
         .join('\n\n'),
@@ -276,9 +326,10 @@ async function callTool(name, args = {}) {
         `Workspace: ${ticket.workspace}`,
         `Repositories: ${ticket.repos.join(', ') || '(not settled yet)'}`,
         `This stage: ${s?.intent ?? ''}`,
-        ticket.stage <= 5
+        ticket.stage <= 5 && ticket.status === 'active'
           ? 'Refused: anything inside a repository except docs/architecture.md, docs/product.md, docs/adr/.'
           : 'Refused: nothing.',
+        ticket.pull_requests?.length ? `Pull requests: ${ticket.pull_requests.join(', ')}` : '',
         ticket.history.length ? `\nHistory:\n${ticket.history.map((h) => `  ${h.at} ${h.from} -> ${h.to}${h.note ? ` (${h.note})` : ''}`).join('\n')}` : '',
       ]
         .filter(Boolean)
@@ -309,10 +360,79 @@ async function callTool(name, args = {}) {
     return ok(hits.length ? hits.slice(0, 10).map((h) => h.line).join('\n') : 'No decision record matched.');
   }
 
+  if (name === 'return_to_stage') {
+    const to = Number(args.stage);
+    if (!stage(to)) return fail(`There is no stage ${args.stage}.`);
+    if (to >= ticket.stage)
+      return fail(`return_to_stage only goes backwards. The task is at ${describe(ticket.stage)}.`);
+    ticket.history.push({ at: new Date().toISOString(), from: ticket.stage, to, note: args.reason });
+    ticket.stage = to;
+    writeTicket(ticket);
+    return ok(`Back to ${describe(to)}. ${stage(to)?.intent ?? ''}\nRecorded: ${args.reason}`);
+  }
+
+  if (name === 'finish_task') {
+    if (ticket.stage < LAST_STAGE)
+      return fail(`The task is at ${describe(ticket.stage)}. Finish the stages before calling finish_task.`);
+    if (!ticket.authorised_at)
+      return fail(
+        'The user has not authorised the pull request yet. Call advance_stage at stage 10 first — that is the dialog that authorises it.',
+      );
+    ticket.status = 'done';
+    ticket.finished_at = new Date().toISOString();
+    if (args.pull_requests?.length) ticket.pull_requests = args.pull_requests;
+    writeTicket(ticket);
+    return ok(
+      `Task ${ticket.branch} is done.\nThe workspace at ${ticket.workspace} is left where it is; delete it when you no longer want it.`,
+    );
+  }
+
+  if (name === 'abandon_task') {
+    ticket.status = 'abandoned';
+    ticket.history.push({ at: new Date().toISOString(), from: ticket.stage, to: ticket.stage, note: `abandoned: ${args.reason}` });
+    writeTicket(ticket);
+    return ok(
+      `Task ${ticket.branch} is marked abandoned at ${describe(ticket.stage)}.\nNothing was deleted: the workspace, the worktrees, and the branch are all still there.`,
+    );
+  }
+
   if (name === 'advance_stage') {
+    if (advancing.has(workspace))
+      return fail('An advance is already in progress for this task; it is waiting on the user.');
+    advancing.add(workspace);
+    try {
+      return await advance({ project, workspace, ticket, args });
+    } finally {
+      advancing.delete(workspace);
+    }
+  }
+
+  return fail(`Unknown tool: ${name}`);
+}
+
+async function advance({ project, workspace, ticket, args }) {
     const config = readConfig(project);
     const current = stage(ticket.stage);
-    if (ticket.stage >= LAST_STAGE) return ok('The task is already at the last stage.');
+
+    // Stage 10's dialog authorises sending the work out; the stage does not
+    // advance past it. finish_task closes the task once the PRs exist.
+    if (ticket.stage === LAST_STAGE) {
+      if (ticket.authorised_at)
+        return ok('Already authorised. Open the pull requests, then call finish_task.');
+      const answer = await elicit(current.dialog(ticket));
+      if (answer?.action !== 'accept') {
+        ticket.history.push({ at: new Date().toISOString(), from: LAST_STAGE, to: 9, note: 'declined' });
+        ticket.stage = 9;
+        writeTicket(ticket);
+        return ok(`Declined. Back to ${describe(9)}.`);
+      }
+      ticket.authorised_at = new Date().toISOString();
+      writeTicket(ticket);
+      return ok(
+        'Authorised. In each repository: commit with a message describing the change and why, push the branch, ' +
+          'and open a pull request. Then call finish_task with the pull request URLs.',
+      );
+    }
 
     const problem = checkStage(ticket.stage, { ticket, workspace, config, args });
     if (problem) return fail(`Cannot leave ${describe(ticket.stage)} yet.\n${problem}`);
@@ -323,8 +443,8 @@ async function callTool(name, args = {}) {
         const to = current.declineTo === 'ask' ? null : current.declineTo;
         if (to === null) {
           return ok(
-            'The user declined. Ask them one question: is this a design problem or an implementation ' +
-              'problem? Then call advance_stage again from the stage they choose — there is a return_to argument.',
+            'The user declined. Ask them one question: is this a design problem or an implementation problem? ' +
+              'Then call return_to_stage with 3 for a design problem or 7 for an implementation problem, and their reason.',
           );
         }
         ticket.history.push({ at: new Date().toISOString(), from: ticket.stage, to, note: 'declined' });
@@ -343,7 +463,6 @@ async function callTool(name, args = {}) {
     if (args.evidence) ticket.evidence = { ...(ticket.evidence ?? {}), [current.key]: args.evidence };
     ticket.history.push({ at: new Date().toISOString(), from: ticket.stage, to: next });
     ticket.stage = next;
-    if (next === LAST_STAGE) ticket.status = 'active';
     writeTicket(ticket);
 
     const s = stage(next);
@@ -359,9 +478,6 @@ async function callTool(name, args = {}) {
         .filter(Boolean)
         .join('\n'),
     );
-  }
-
-  return fail(`Unknown tool: ${name}`);
 }
 
 // ---------------------------------------------------------------- JSON-RPC loop

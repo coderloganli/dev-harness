@@ -111,8 +111,10 @@ hands back the directory to return to and the session to resume.
 ## Getting started
 
 ```
-/dev-harness:init     once per project
-/dev-harness:task     once per task
+/dev-harness:init       once per project
+/dev-harness:task       start a task, or resume the one you are standing in
+/dev-harness:status     where the current task stands
+/dev-harness:tickets    find an earlier task, and get back its workspace and session
 ```
 
 `init` creates `tickets/`, writes the document skeletons that are missing, and asks

@@ -244,14 +244,27 @@ ticket records each return, so a task that went around twice says so.
 
 ## 8. The server
 
-One MCP server, four tools.
+One MCP server, eight tools.
 
 | Tool | What it does |
 | :-- | :-- |
-| `advance_stage` | Check the current stage's output, raise a dialog when the stage needs the user, record the new stage in the ticket |
+| `start_task` | Create the workspace, the ticket, and the task document |
+| `advance_stage` | Check the current stage's output, raise a dialog when the stage needs the user, record the new stage |
+| `return_to_stage` | Send the task back to an earlier stage, with the user's reason |
+| `finish_task` | Mark the task done once the pull requests exist |
+| `abandon_task` | Mark the task abandoned; delete nothing |
 | `get_status` | Report the current task: stage, workspace, repositories, what is refused |
 | `find_adr` | Search ADRs across the task's repositories |
-| `find_ticket` | Search tickets by description; return workspace path and session id |
+| `find_ticket` | Search tickets by description, or list them; return workspace path and session id |
+
+Stage 10 is the one stage whose dialog does not advance anything: it authorises
+sending the work out, and `finish_task` closes the task once the pull requests
+exist. Splitting them keeps the ticket honest — a task is not done because
+permission was given, but because the work left the machine.
+
+An advance that is waiting on a dialog holds the task: a second `advance_stage`
+arriving meanwhile is turned away rather than queued, so one stage never raises two
+dialogs.
 
 `advance_stage` takes a stage name. It does not take the wording of the dialog. The
 server holds that text, so the question the user is asked is always the plugin's,
