@@ -44,6 +44,12 @@ Every directory inside `main/` that contains `.git` is a repository in this
 project. Report the list. There is nothing to record: it is read again whenever it
 is needed.
 
+`main/` is always a container, even for a project with one repository — the
+checkout goes at `main/<name>/`, never at `main/` itself. If `main/` is a checkout,
+say so and offer to move it down one level; a task workspace has the same shape as
+`main/`, and if it did not, `task.md` would have nowhere to sit except inside the
+repository.
+
 ## Step 3 — Create `tickets/`
 
 An empty directory at the project root, if it is not already there.

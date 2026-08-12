@@ -127,6 +127,13 @@ to no repository.
 same shape as every task workspace. Repositories are found by looking inside it,
 which is why nothing has to be recorded about where they are.
 
+**`main/` is always a container, one directory per repository, even when there is
+only one.** The obvious shortcut — letting `main/` be the checkout itself in a
+single-repository project — costs more than it saves: the task workspace would
+have to change shape to match, and then the task document has nowhere to live
+except inside the repository, which is exactly what it must never do. One layout,
+one rule, one place for `task.md`.
+
 Three consequences worth stating because they do work later:
 
 **The task document is outside every repository.** Nothing has to be excluded, no

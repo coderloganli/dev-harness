@@ -14,12 +14,27 @@ import {
   BASE_WORKSPACE,
   TASK_DOC,
   allTickets,
+  baseIsRepo,
   context,
   listRepos,
   newTicket,
   readConfig,
   writeTicket,
 } from '../lib/store.mjs';
+
+/** What to tell the caller about the repositories in a project. */
+function reposLine(project) {
+  const repos = listRepos(project);
+  if (repos.length) return `Repositories available: ${repos.join(', ')}.`;
+  if (baseIsRepo(project))
+    return (
+      `No repositories found. ${BASE_WORKSPACE}/ is itself a git checkout, but dev-harness expects it to be a ` +
+      `container with one directory per repository — ${BASE_WORKSPACE}/<name>/ — so that a task workspace has the ` +
+      `same shape and the task document can sit at its root, outside every repository. Move the checkout down one ` +
+      `level and try again.`
+    );
+  return `No repositories found under ${BASE_WORKSPACE}/.`;
+}
 
 // ---------------------------------------------------------------- transport
 
@@ -279,7 +294,7 @@ async function callTool(name, args = {}) {
         `Task document: ${workspace}/${TASK_DOC}`,
         '',
         `Now at ${describe(1)}. Worktrees are not created yet — which repositories this`,
-        `task touches is settled during stage 2. Repositories available: ${listRepos(project).join(', ') || '(none found)'}.`,
+        `task touches is settled during stage 2. ${reposLine(project)}`,
         '',
         `Refused until the design is approved: anything inside a repository except`,
         `docs/architecture.md, docs/product.md, docs/adr/.`,
