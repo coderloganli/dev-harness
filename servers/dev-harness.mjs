@@ -148,6 +148,12 @@ const TOOLS = [
         cwd: { type: 'string', description: 'A directory inside the project.' },
         branch: { type: 'string', description: 'Branch name, kebab-case, names the outcome.' },
         description: { type: 'string', description: "The problem, in the user's own words." },
+        session_id: {
+          type: 'string',
+          description:
+            'The current Claude session id, so the ticket can offer a resume later. Read it from ' +
+            'CLAUDE_CODE_SESSION_ID in a shell call — this server does not receive it.',
+        },
       },
       required: ['branch', 'description'],
     },
@@ -284,7 +290,17 @@ async function callTool(name, args = {}) {
 
     mkdirSync(workspace, { recursive: true });
     writeFileSync(join(workspace, TASK_DOC), TASK_TEMPLATE(args.description), 'utf8');
-    const ticket = newTicket({ project, branch: args.branch, description: args.description });
+    // The caller passes the session id, because this process does not receive it:
+    // Claude Code does not put CLAUDE_CODE_SESSION_ID in a bundled MCP server's
+    // environment. Reading it anyway costs nothing and starts working by itself if
+    // that ever changes. With neither, the ticket records null — a missing id is
+    // visible, a guessed one is not (ADR 0002).
+    const ticket = newTicket({
+      project,
+      branch: args.branch,
+      description: args.description,
+      session_id: args.session_id || process.env.CLAUDE_CODE_SESSION_ID || null,
+    });
     writeTicket(ticket);
 
     return ok(
@@ -361,7 +377,11 @@ async function callTool(name, args = {}) {
       const fallback = `${project}/${BASE_WORKSPACE}/${repo}/docs/adr`;
       const from = existsSync(dir) ? dir : existsSync(fallback) ? fallback : null;
       if (!from) continue;
-      for (const file of readdirSync(from).filter((f) => f.endsWith('.md'))) {
+      // README.md keeps the directory alive in git and describes what the directory
+      // is for. It holds no decision, and it contains the words every search is made
+      // of, so it would otherwise be the first result every time (ADR 0003).
+      const records = readdirSync(from).filter((f) => f.endsWith('.md') && f.toLowerCase() !== 'readme.md');
+      for (const file of records) {
         const text = readFileSync(join(from, file), 'utf8');
         const hay = text.toLowerCase();
         const score = words.filter((w) => hay.includes(w)).length;

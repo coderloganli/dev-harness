@@ -44,7 +44,7 @@ session, which §3 addresses.
 
 **Stage control.** The current stage lives in the ticket, and the ticket is written
 by the server, not by Claude. To move on, Claude calls `advance_stage`; the server
-checks the stage's output exists before agreeing, and for the three stages that
+checks the stage's output exists before agreeing, and for the four stages that
 need the user, raises a dialog and waits. Claude can ask to advance. It cannot
 advance.
 
@@ -119,7 +119,7 @@ to no repository.
     api/                  git worktree of "api" on branch add-note-search
     web/                  git worktree of "web" on branch add-note-search
   docs/product.md         product design — only when the project spans repos
-  config.json             project config: codex on/off, test and run commands
+  config.json             project config: codex on/off, and how to test and try
   tickets/                one file per task
 ```
 
@@ -193,9 +193,28 @@ not by its branch name, so `find_ticket(query)` matches on the description and
 returns the workspace path and the session id to resume. A slash command exposes
 the same search to the user directly.
 
-One implementation constraint: **the session id reaches the plugin only through
-hook events, not through the server.** A hook writes it into the ticket; the server
-reads it back. Anything that needs it has to go through that path.
+**The session id is passed in.** `start_task` takes it as an argument, and the task
+skill reads `CLAUDE_CODE_SESSION_ID` in a shell call to supply it. With no argument
+the server tries its own environment, which is empty today and costs nothing to try.
+With neither, the ticket records null.
+
+Getting the id to the ticket took three failed attempts, and what they have in
+common is worth more than any of them:
+
+- A hook wrote it into the ticket — but resolved *which* ticket from the event's
+  working directory, and a session creating a task is usually nowhere near the
+  workspace it is about to create.
+- The server read it from its own environment — but a bundled MCP server does not
+  inherit `CLAUDE_CODE_SESSION_ID`, and a test that sets the variable itself cannot
+  discover that.
+- A shared record was designed to bridge the two — and cut, because it could hold a
+  session from another project or one closed days ago, producing a wrong id where
+  there had been none.
+
+`SessionStart` still repairs a ticket when a session starts inside that ticket's own
+workspace. That is the one place where resolving from the working directory is
+right: the session demonstrably is there. See
+`docs/adr/0002-session-id-from-the-environment.md`.
 
 Workspaces are not deleted when a task finishes, so both workspaces and tickets
 accumulate. Managing them — listing, filtering by status, cleaning up finished
@@ -220,7 +239,7 @@ Ten stages. The stage lives in the ticket; the server owns it.
 | 9 | **User acceptance** | The user has run it and accepts — **dialog** |
 | 10 | Pull request | The PR is open |
 
-Three stages end in a dialog the user answers. The rest end when Claude calls
+Four stages end in a dialog the user answers — 5, 6, 9 and 10. The rest end when Claude calls
 `advance_stage` and the server agrees the stage's output exists — the task document
 has the section, the ADR files are there, the test command was run and reported
 failures.
@@ -289,9 +308,15 @@ another task in the same project. Everything is in the ticket file.
 ## 9. Init
 
 `init` adopts a project, once. It creates `tickets/`, writes the document skeletons
-that are missing — `docs/architecture.md`, `docs/product.md`, an empty `docs/adr/`
-in each repository — and asks for the three facts it cannot discover: the test
-command, the run command, and whether codex is available.
+that are missing — `docs/architecture.md`, `docs/product.md`, and `docs/adr/README.md`
+in each repository — and asks for the three facts it cannot discover: how the test
+suite is run, how the user tries a change, and whether codex is available.
+
+The decision-record directory gets a README rather than being left empty, because
+git does not track empty directories and the directory would vanish on the first
+commit. Making that file the README rather than a `.gitkeep` means it also explains
+what the directory is for. `find_adr` skips it, since it holds no decision and
+contains the words every search is made of.
 
 It does not move, clone, or reorganise anything. Repositories are wherever they
 already are inside `main/`, and finding them is a directory listing.
@@ -301,6 +326,14 @@ belongs under each; the content is the user's.
 
 Project config therefore holds three values and no inventory. Which repositories a
 task touches is a per-task answer and lives in that task's ticket.
+
+The three are not the same kind of thing, and saying so prevents the mistake that
+produced them being treated alike. **`codex` is read by the server** and is the only
+value any program reads: it decides whether stages 4 and 8 happen. **`test` and
+`try` are read by Claude** — they exist so the question is asked once per project
+rather than once per task, and their values are prose as much as commands. `try` is
+named for what stage 9 needs, which is a way for the user to exercise the change
+themselves; a project with nothing to launch answers it with a sentence.
 
 ---
 

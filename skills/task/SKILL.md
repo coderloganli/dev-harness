@@ -31,7 +31,17 @@ their answer into a solution.
 
 Propose a branch name: kebab-case, at most four words, naming the outcome
 (`add-note-search`, not `fix-stuff`). Confirm it, then call `start_task` with the
-branch and the user's description.
+branch, the user's description, and the session id.
+
+The session id comes from `CLAUDE_CODE_SESSION_ID`, which is in the environment of
+your shell but not in the server's, so read it and pass it. Read it the way the
+shell you are using reads an environment variable — `$CLAUDE_CODE_SESSION_ID` in a
+POSIX shell, `$env:CLAUDE_CODE_SESSION_ID` in PowerShell. Getting this wrong is
+silent: the wrong form prints nothing and the ticket records null.
+
+Without it the ticket records null and `find_ticket` cannot offer a resume for this
+task later. That is the honest failure rather than a broken one, but it is a loss —
+so do not skip it.
 
 That creates the workspace directory, the ticket, and `task.md`. No worktrees yet.
 
@@ -155,9 +165,9 @@ until it comes back clean, then `advance_stage` with `evidence`.
 
 ## Stage 9 — User acceptance — DIALOG
 
-Start the feature with the project's run command and hand the user something they
-can exercise themselves: the command, the URL, the input to try. Then
-`advance_stage`.
+Follow the project's `try` value from `config.json` to hand the user something they
+can exercise themselves: the command, the URL, the input to try. The value may be a
+command or a sentence — some projects have nothing to launch. Then `advance_stage`.
 
 If the user declines, ask them one question — is this a design problem or an
 implementation problem? — then call `return_to_stage` with 3 or 7 and their reason.
