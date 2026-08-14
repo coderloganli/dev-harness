@@ -1,6 +1,6 @@
 ---
 name: status
-description: Report where the current dev-harness task stands — which stage, which repositories, what is refused, and what the stage calls for next.
+description: Report where the current harness task stands — which stage, which repositories, what is refused, and what the stage calls for next.
 disable-model-invocation: true
 ---
 

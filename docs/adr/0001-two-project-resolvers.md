@@ -4,7 +4,7 @@ summary: hooks and the server resolve the project mechanically; init resolves it
 
 ## Context
 
-Two parts of dev-harness need to answer "which project is this?" and they run in
+Two parts of the harness need to answer "which project is this?" and they run in
 places that could not be more different.
 
 `findProject()` in `lib/store.mjs` runs inside a hook process and inside the MCP

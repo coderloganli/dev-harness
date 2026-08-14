@@ -1,6 +1,6 @@
 ---
 name: init
-description: Adopt a project into dev-harness — create the tickets directory, write the missing document skeletons in each repository, and record how the suite is run, how the user tries a change, and whether codex is available. Run once per project; safe to run again.
+description: Adopt a project into the harness — create the tickets directory, write the missing document skeletons in each repository, and record how the suite is run, how the user tries a change, and whether codex is available. Run once per project; safe to run again.
 disable-model-invocation: true
 ---
 

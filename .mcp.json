@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "harness": {
+    "stages": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/servers/dev-harness.mjs"]
     }

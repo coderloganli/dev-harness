@@ -1,9 +1,11 @@
-# dev-harness
+# Claude Code Harness
 
-A Claude Code plugin that makes Claude build software the way a careful engineer
-does: read the design first, agree it before writing code, write the failing test
+A harness for Claude Code: it makes Claude build software the way a careful engineer
+does — read the design first, agree it before writing code, write the failing test
 before the feature, work in a scratch space that cannot damage anything, and keep
 the documentation true.
+
+Installed as a plugin, it answers to `harness`: `/harness:task`, `/harness:status`.
 
 It governs three things, and they are independent of each other:
 
@@ -12,9 +14,9 @@ It governs three things, and they are independent of each other:
 - **Workspace** — one per task, isolated, findable again weeks later.
 - **Stages** — ten of them, four ending in a dialog you answer.
 
-> **Status: early.** The plugin runs and has been verified end to end against a
-> scratch project, but it has not yet been through a real task. There is no
-> marketplace entry yet.
+> **Status: early.** The harness has been through one real task — its own, fixing
+> five defects that its first run exposed — and the ten stages, the refusal and the
+> approval dialogs all held. There is no marketplace entry yet.
 
 ## Why
 
@@ -24,7 +26,7 @@ three conditions by hand in every project — a CLAUDE.md, a habit of asking for
 plan, a manual `git worktree add` — and drop them under time pressure, which is
 exactly when they were doing the most work.
 
-dev-harness makes them a property of the tool instead of a property of your
+The harness makes them a property of the tool instead of a property of your
 willpower.
 
 ## The ten stages
@@ -113,10 +115,10 @@ resume that goes nowhere.
 ## Getting started
 
 ```
-/dev-harness:init       once per project
-/dev-harness:task       start a task, or resume the one you are standing in
-/dev-harness:status     where the current task stands
-/dev-harness:tickets    find an earlier task, and get back its workspace and session
+/harness:init       once per project
+/harness:task       start a task, or resume the one you are standing in
+/harness:status     where the current task stands
+/harness:tickets    find an earlier task, and get back its workspace and session
 ```
 
 `init` creates `tickets/`, writes the document skeletons that are missing, and asks

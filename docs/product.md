@@ -2,7 +2,7 @@
 
 ## What this is
 
-dev-harness is a Claude Code plugin that makes Claude build software the way a
+The harness is a Claude Code plugin that makes Claude build software the way a
 careful engineer does: read the design first, agree it before writing code, write
 the failing test before the feature, work in a scratch space that cannot damage
 anything, and keep the documentation true.
@@ -24,7 +24,7 @@ their own tendency to accept whatever the model produced first.
 discipline enforced by the tool, and project facts recorded in the repository
 rather than in one person's head.
 
-**Not for** exploratory scripting or a one-line fix. dev-harness is deliberately
+**Not for** exploratory scripting or a one-line fix. The harness is deliberately
 heavy at the front, and it must never impose itself on a project that has not opted
 in.
 
@@ -131,6 +131,6 @@ the stage produced something, and asks the user at the four stages that need the
   verifiable from the branch's history.
 - The base-branch checkout is byte-identical before and after an abandoned task.
 - A second task runs while the first is unfinished, with no interference.
-- A project that has never heard of dev-harness sees no blocked tool call and no
+- A project that has never adopted the harness sees no blocked tool call and no
   injected instruction while the plugin is installed.
 - A task from weeks ago is found by describing it, and resumed from its ticket.

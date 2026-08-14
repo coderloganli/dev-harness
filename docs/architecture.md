@@ -1,9 +1,9 @@
-# dev-harness — Architecture
+# Claude Code Harness — Architecture
 
 Status: draft, pending review
 Last updated: 2026-08-10
 
-dev-harness is a Claude Code plugin that governs three things: the documents a
+The harness is a Claude Code plugin that governs three things: the documents a
 project keeps, the workspace a task runs in, and the stages a task passes through.
 
 This document says what the system is and how it gets Claude to follow the

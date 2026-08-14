@@ -1,6 +1,6 @@
 ---
 name: tickets
-description: Find an earlier dev-harness task by what it was about, and get back the workspace to return to and the session to resume. Lists every task when given nothing to search for.
+description: Find an earlier harness task by what it was about, and get back the workspace to return to and the session to resume. Lists every task when given nothing to search for.
 disable-model-invocation: true
 ---
 
