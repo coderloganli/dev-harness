@@ -11,14 +11,21 @@ import { basename, dirname, join } from 'node:path';
 
 import { LAST_STAGE, describe, stage } from '../lib/stages.mjs';
 import {
+  ARCHIVE_DIR,
+  BACKLOG_STAGE,
   BASE_WORKSPACE,
+  STATUSES,
   TASK_DOC,
   allTickets,
   baseIsRepo,
   context,
+  findProject,
   listRepos,
+  moveTicket,
   newTicket,
   readConfig,
+  readTicket,
+  validBranch,
   writeTicket,
 } from '../lib/store.mjs';
 
@@ -65,6 +72,84 @@ function elicit(message) {
 
 const ok = (text) => ({ content: [{ type: 'text', text }] });
 const fail = (text) => ({ content: [{ type: 'text', text }], isError: true });
+
+/**
+ * A branch name is taken if any ticket holds it, archived or not. An archived ticket
+ * is still a ticket — it can be restored, and restoring it must not find its name
+ * used by something else.
+ */
+function takenBy(project, branch) {
+  const live = readTicket(project, branch);
+  if (live) return { ticket: live, archived: false };
+  const archived = readTicket(project, branch, { archived: true });
+  return archived ? { ticket: archived, archived: true } : null;
+}
+
+const inTheArchive = (branch) =>
+  `${branch} is in the archive — archiving deletes nothing, so the name is still taken. ` +
+  `Bring it back with archive_ticket restore: true, or pick another branch name.`;
+
+const badBranch = (branch) =>
+  `Not a usable branch name: ${JSON.stringify(branch)}. A branch name is also a directory name and a ` +
+  `file name, so it is lower-case letters, digits and hyphens — no separators, no leading dot, no "..".`;
+
+// ---------------------------------------------------------------- the listing
+
+const DESCRIPTION_WIDTH = 60;
+
+/** How far along a ticket is, in the width of a word rather than a sentence. */
+function stageCell(t) {
+  if (t.stage === BACKLOG_STAGE) return 'backlog';
+  if (t.status === 'done') return 'done';
+  return `${t.stage}/${LAST_STAGE}`;
+}
+
+/**
+ * A table, one row per ticket.
+ *
+ * The description is last and truncated, so the one column whose width nothing
+ * controls cannot push the columns before it out of line.
+ */
+function table(rows) {
+  const cells = rows.map((t) => [
+    t.branch,
+    t.status,
+    stageCell(t),
+    t.session_id ? 'yes' : '—',
+    t.description.replace(/\s+/g, ' ').trim(),
+  ]);
+  const header = ['branch', 'status', 'stage', 'session', 'description'];
+  const widths = header
+    .slice(0, -1)
+    .map((h, i) => Math.max(h.length, ...cells.map((c) => c[i].length)));
+
+  const line = (c) =>
+    c
+      .slice(0, -1)
+      .map((v, i) => v.padEnd(widths[i]))
+      .join('  ') +
+    '  ' +
+    (c[4].length > DESCRIPTION_WIDTH ? c[4].slice(0, DESCRIPTION_WIDTH) + '…' : c[4]);
+
+  return [line(header), ...cells.map(line)].join('\n');
+}
+
+/** Everything about one ticket, for someone trying to get back into it. */
+function block(t) {
+  return [
+    `${t.branch} — ${t.status}, ${describe(t.stage)}`,
+    `  ${t.description}`,
+    `  workspace: ${t.workspace ?? '(not started)'}`,
+    `  session: ${t.session_id ?? '(not recorded)'}`,
+    t.repos?.length ? `  repositories: ${t.repos.join(', ')}` : '',
+    t.pull_requests?.length ? `  pull requests: ${t.pull_requests.join(', ')}` : '',
+    t.history?.length
+      ? `  history:\n${t.history.map((h) => `    ${h.at} ${h.from} -> ${h.to}${h.note ? ` (${h.note})` : ''}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 
 // ---------------------------------------------------------------- task document
 
@@ -200,15 +285,70 @@ const TOOLS = [
   {
     name: 'find_ticket',
     description:
-      'Search tickets by what the task was about, or list them all when no query is given. ' +
-      'Returns the workspace to return to and the session id to resume.',
+      'Search tickets by what the task was about, or list them when no query is given. Unfinished ' +
+      'work only unless asked otherwise. Returns a table, or the whole ticket when one matches.',
     inputSchema: {
       type: 'object',
       properties: {
         cwd: { type: 'string' },
         query: { type: 'string', description: 'Words from the task description. Omit to list everything.' },
-        status: { type: 'string', enum: ['active', 'done', 'abandoned'] },
+        status: {
+          type: 'string',
+          enum: ['active', 'done', 'abandoned', 'all'],
+          description: 'Defaults to active, which includes backlog entries. "all" is every unarchived ticket.',
+        },
+        archived: {
+          type: 'boolean',
+          description: 'Read the archive instead. Archived tickets appear in no other listing.',
+        },
       },
+    },
+  },
+  {
+    name: 'add_ticket',
+    description:
+      'Write down a backlog entry: work not begun. A description and a proposed branch name, and ' +
+      'nothing else — no workspace, no worktree, no branch, no task document. Starting it later is start_task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string', description: 'A directory inside the project.' },
+        branch: { type: 'string', description: 'Proposed branch name, kebab-case, names the outcome.' },
+        description: { type: 'string', description: "The work, in the user's own words." },
+      },
+      required: ['branch', 'description'],
+    },
+  },
+  {
+    name: 'set_ticket_status',
+    description:
+      'Move a ticket between active and abandoned, by branch, from anywhere in the project. Reopening ' +
+      'is status: "active" on an abandoned or done ticket. It cannot set done — that is finish_task, ' +
+      'after the stage 10 authorisation. The user is asked before anything is written.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string' },
+        branch: { type: 'string', description: 'Which ticket.' },
+        status: { type: 'string', enum: ['active', 'abandoned'] },
+        reason: { type: 'string', description: "The user's words about why." },
+      },
+      required: ['branch', 'status'],
+    },
+  },
+  {
+    name: 'archive_ticket',
+    description:
+      'Move a ticket out of every listing, into tickets/archive/, or back out with restore. Nothing is ' +
+      'deleted: the workspace, the worktree and the branch are untouched. The user is asked first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cwd: { type: 'string' },
+        branch: { type: 'string', description: 'Which ticket.' },
+        restore: { type: 'boolean', description: 'Bring it back out of the archive.' },
+      },
+      required: ['branch'],
     },
   },
   {
@@ -285,26 +425,49 @@ async function callTool(name, args = {}) {
       return fail(
         `No dev-harness project found from ${cwd}. A project is a directory containing ${BASE_WORKSPACE}/ and tickets/. Run init first.`,
       );
+    if (!validBranch(args.branch)) return fail(badBranch(args.branch));
+
+    // The ticket is read before anything is created. A backlog entry has no
+    // workspace directory to collide with, so checking the directory alone would
+    // create it and then overwrite the record of why it exists.
+    const held = takenBy(project, args.branch);
+    if (held?.archived) return fail(inTheArchive(args.branch));
+    const existing = held?.ticket ?? null;
+    if (existing && existing.stage !== BACKLOG_STAGE)
+      return fail(
+        `${args.branch} already has a ticket at ${describe(existing.stage)} (${existing.status}). ` +
+          `Pick another branch name, or continue that task from ${existing.workspace}.`,
+      );
+
     const workspace = `${project}/${args.branch}`;
     if (existsSync(workspace)) return fail(`${workspace} already exists.`);
 
+    // What a backlog entry said is the description of record. The task document is
+    // written from it too, so the ticket and the document cannot disagree about what
+    // the task is.
+    const description = existing?.description ?? args.description;
+
     mkdirSync(workspace, { recursive: true });
-    writeFileSync(join(workspace, TASK_DOC), TASK_TEMPLATE(args.description), 'utf8');
+    writeFileSync(join(workspace, TASK_DOC), TASK_TEMPLATE(description), 'utf8');
     // The caller passes the session id, because this process does not receive it:
     // Claude Code does not put CLAUDE_CODE_SESSION_ID in a bundled MCP server's
     // environment. Reading it anyway costs nothing and starts working by itself if
     // that ever changes. With neither, the ticket records null — a missing id is
     // visible, a guessed one is not (ADR 0002).
-    const ticket = newTicket({
+    const fresh = newTicket({
       project,
       branch: args.branch,
-      description: args.description,
+      description,
       session_id: args.session_id || process.env.CLAUDE_CODE_SESSION_ID || null,
     });
+    // Adopting a backlog entry rather than replacing it: what it was about, and when
+    // it was first written down, are the two things worth keeping from it.
+    const ticket = existing ? { ...existing, ...fresh, created_at: existing.created_at } : fresh;
     writeTicket(ticket);
 
     return ok(
       [
+        existing ? `Backlog ticket ${args.branch} adopted, first written down ${existing.created_at}.` : '',
         `Workspace created: ${workspace}`,
         `Ticket: ${project}/tickets/${args.branch}.json`,
         `Task document: ${workspace}/${TASK_DOC}`,
@@ -314,15 +477,30 @@ async function callTool(name, args = {}) {
         '',
         `Refused until the design is approved: anything inside a repository except`,
         `docs/architecture.md, docs/product.md, docs/adr/.`,
-      ].join('\n'),
+      ]
+        .filter(Boolean)
+        .join('\n'),
     );
   }
 
   const { project, workspace, ticket } = context(cwd);
+
+  // Tickets are managed by name, from anywhere in the project — managing one means
+  // acting on a ticket whose workspace you are not in. So these are dispatched
+  // before the "no active task here" gate that the stage tools sit behind.
   if (name === 'find_ticket') {
     if (!project) return fail(`No dev-harness project found from ${cwd}.`);
     const words = (args.query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
-    let rows = allTickets(project).filter((t) => !args.status || t.status === args.status);
+    const archived = Boolean(args.archived);
+    // Unfinished work is the default: everything ever started would otherwise bury
+    // the one thing being worked on. The archive is the exception — asking for it is
+    // already asking for the finished-with, so filtering it again by status would
+    // hide almost everything in it.
+    const wanted = args.status ?? (archived ? 'all' : 'active');
+    if (!STATUSES.includes(wanted) && wanted !== 'all')
+      return fail(`Not a status to filter by: ${wanted}. One of ${STATUSES.join(', ')}, or all.`);
+
+    let rows = allTickets(project, { archived }).filter((t) => wanted === 'all' || t.status === wanted);
 
     if (words.length) {
       rows = rows
@@ -334,16 +512,37 @@ async function callTool(name, args = {}) {
       rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     }
 
-    if (!rows.length) return ok(words.length ? 'No ticket matched.' : 'No tickets yet.');
+    if (!rows.length)
+      return ok(
+        words.length
+          ? 'No ticket matched.'
+          : archived
+            ? 'The archive is empty.'
+            : `No ${wanted === 'all' ? '' : `${wanted} `}tickets.`,
+      );
+    // A search that lands on one ticket is someone getting back into it. A listing
+    // is a listing however few rows it has, or the shape of the answer would change
+    // with the number of tasks in the project.
+    if (words.length && rows.length === 1) return ok(block(rows[0]));
+
+    const shown = rows.slice(0, 20);
     return ok(
-      rows
-        .slice(0, 20)
-        .map(
-          (t) =>
-            `${t.branch} — ${t.status}, ${describe(t.stage)}\n  ${t.description}\n  workspace: ${t.workspace}\n  session: ${t.session_id ?? '(not recorded)'}`,
-        )
-        .join('\n\n'),
+      [
+        table(shown),
+        rows.length > shown.length ? `\n${rows.length - shown.length} more; narrow it with a query.` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     );
+  }
+
+  if (name === 'add_ticket' || name === 'set_ticket_status' || name === 'archive_ticket') {
+    // findProject rather than the resolved workspace: these work from anywhere,
+    // including a project root, which is no task's workspace.
+    const root = project ?? findProject(cwd);
+    if (!root) return fail(`No dev-harness project found from ${cwd}.`);
+    if (!validBranch(args.branch)) return fail(badBranch(args.branch));
+    return await manage(name, root, args);
   }
 
   if (!ticket) return fail(`No active task found from ${cwd}. Nothing for dev-harness to do here.`);
@@ -443,6 +642,132 @@ async function callTool(name, args = {}) {
   }
 
   return fail(`Unknown tool: ${name}`);
+}
+
+/**
+ * The three tools that manage a ticket rather than move a task through its stages.
+ *
+ * The line between them: the stage flow owns `done`, management owns everything
+ * else, and every change management makes is put to the user first (ADR 0006).
+ */
+async function manage(name, project, args) {
+  if (name === 'add_ticket') {
+    const held = takenBy(project, args.branch);
+    if (held?.archived) return fail(inTheArchive(args.branch));
+    if (held)
+      return fail(
+        `${args.branch} already has a ticket — ${held.ticket.status}, ${describe(held.ticket.stage)}. ` +
+          `Pick another branch name.`,
+      );
+    writeTicket(newTicket({ project, branch: args.branch, description: args.description, stage: BACKLOG_STAGE }));
+    return ok(
+      [
+        `Backlog ticket ${args.branch} written down.`,
+        'Nothing else was created: no workspace, no worktree, no branch, no task document.',
+        'Start it whenever you like with the task skill, which will adopt this ticket.',
+      ].join('\n'),
+    );
+  }
+
+  if (name === 'archive_ticket') {
+    // Restoring reads the archive, archiving reads the listing: the same ticket is
+    // only ever in one of the two places.
+    const restore = Boolean(args.restore);
+    const t = readTicket(project, args.branch, { archived: restore });
+    if (!t)
+      return fail(
+        restore
+          ? `${args.branch} is not in the archive.`
+          : `No ticket for ${args.branch} in this project.`,
+      );
+    // Refused before the dialog, like an impossible status change: asking the user
+    // to authorise something that cannot happen spends the one interruption the
+    // plugin is allowed, and leaves them thinking it was done.
+    if (readTicket(project, args.branch, { archived: !restore }))
+      return fail(
+        restore
+          ? `${args.branch} is already in the listing; the restore would write over it. Nothing was moved.`
+          : `${args.branch} is already in the archive. Nothing was moved.`,
+      );
+
+    const answer = await elicit(
+      restore
+        ? `Bring ${args.branch} back out of the archive?`
+        : `Archive ${args.branch} (${t.status}, ${describe(t.stage)})? It leaves every listing; nothing is deleted.`,
+    );
+    if (answer?.action !== 'accept')
+      return ok(`Declined. ${args.branch} stays where it is.`);
+
+    moveTicket(project, args.branch, { restore });
+    return ok(
+      restore
+        ? `${args.branch} is back in the listing.`
+        : [
+            `${args.branch} moved to ${ARCHIVE_DIR}/.`,
+            'Nothing was deleted: the workspace, the worktree and the branch are where they were.',
+            'Find it again with find_ticket archived: true, or bring it back with archive_ticket restore: true.',
+          ].join('\n'),
+    );
+  }
+
+  const ticket = readTicket(project, args.branch);
+  if (!ticket) {
+    const archived = readTicket(project, args.branch, { archived: true });
+    return fail(
+      archived
+        ? `${args.branch} is in the archive. Bring it back with archive_ticket restore: true first.`
+        : `No ticket for ${args.branch} in this project.`,
+    );
+  }
+
+  {
+    // Refused before the dialog: asking the user to authorise something that cannot
+    // happen wastes the one interruption the plugin is allowed.
+    if (args.status === 'done')
+      return fail(
+        'A ticket becomes done by finishing: the user accepts the feature at stage 9, authorises the pull ' +
+          'request at stage 10, and finish_task records it. set_ticket_status takes active or abandoned.',
+      );
+    if (!STATUSES.includes(args.status) || args.status === 'done')
+      return fail(`Not a status this tool sets: ${args.status}. Use active or abandoned.`);
+    if (ticket.status === args.status)
+      return ok(`${args.branch} is already ${args.status}. Nothing to do.`);
+
+    const reopening = args.status === 'active';
+    const answer = await elicit(
+      `${reopening ? 'Reopen' : 'Abandon'} ${args.branch} (${ticket.status}, ${describe(ticket.stage)})?` +
+        (args.reason ? ` — ${args.reason}` : ''),
+    );
+    if (answer?.action !== 'accept') return ok(`Declined. ${args.branch} is unchanged.`);
+
+    const was = ticket.status;
+    ticket.status = args.status;
+    // A live task cannot also be one the user has already authorised sending out.
+    // The pull requests themselves stay: they exist, and this is the record of it.
+    if (reopening && was === 'done') {
+      delete ticket.finished_at;
+      delete ticket.authorised_at;
+    }
+    ticket.history.push({
+      at: new Date().toISOString(),
+      from: ticket.stage,
+      to: ticket.stage,
+      note: `${was} -> ${args.status}${args.reason ? `: ${args.reason}` : ''}`,
+    });
+    writeTicket(ticket);
+
+    return ok(
+      [
+        `${args.branch} is ${args.status}, at ${describe(ticket.stage)}.`,
+        reopening && was === 'done'
+          ? 'finished_at and authorised_at are cleared: sending it out again goes through the stage 10 dialog again.'
+          : '',
+        reopening ? `Continue it from ${ticket.workspace ?? 'its workspace'}.` : 'Nothing was deleted.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
 }
 
 async function advance({ project, workspace, ticket, args }) {

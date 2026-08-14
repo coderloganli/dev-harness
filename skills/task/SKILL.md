@@ -45,6 +45,11 @@ so do not skip it.
 
 That creates the workspace directory, the ticket, and `task.md`. No worktrees yet.
 
+If the work was written down beforehand as a backlog entry, start it under that
+entry's branch name: `start_task` adopts the ticket instead of replacing it, keeping
+what it said and when it was written down. `find_ticket` shows backlog entries in its
+ordinary listing, so a quick look before naming a branch is enough to notice one.
+
 ## Stage 2 — Requirements interview
 
 Do all of this before asking the user anything:
