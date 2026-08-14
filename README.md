@@ -104,9 +104,11 @@ edited in place when a decision changes.
 
 ## Finding your way back
 
-Every task has a local ticket holding its description, its workspace, and its Claude
-session id. Weeks later, ask for "that task about search ranking" and `find_ticket`
-hands back the directory to return to and the session to resume.
+Every task has a local ticket holding its description, its workspace, and the Claude
+session it was worked in. Weeks later, ask for "that task about search ranking" and
+`find_ticket` hands back the directory to return to, and the session to resume when
+one was recorded — a task whose session was not says so, rather than offering a
+resume that goes nowhere.
 
 ## Getting started
 
@@ -118,7 +120,7 @@ hands back the directory to return to and the session to resume.
 ```
 
 `init` creates `tickets/`, writes the document skeletons that are missing, and asks
-for the three things it cannot discover: your test command, your run command, and
+for the three things it cannot discover: how your suite is run, how to try a change, and
 whether codex is available. It moves nothing and clones nothing.
 
 ## What it will not do
@@ -134,7 +136,7 @@ whether codex is available. It moves nothing and clones nothing.
 
 ## Documentation
 
-- [Product requirements](docs/prd.md) — the problems and the full walkthrough
+- [Product design](docs/product.md) — the problems it solves, and what it will not do
 - [Architecture](docs/architecture.md) — how it is built and why
 
 ## License
