@@ -43,8 +43,12 @@ export function cleanup() {
  * Note that the environment is NOT how the session id reaches the server — that
  * design failed acceptance; it is passed to `start_task` as an argument. The
  * environment is set here only to prove the argument wins over it.
+ *
+ * `answer` is what the user does at a dialog: 'accept' or 'decline'. A tool that
+ * raises one blocks until it is answered, so without this the call never returns.
+ * Left unset, an unexpected dialog is cancelled rather than hanging the suite.
  */
-export function callTools(calls, { env = {}, unset = [], timeoutMs = 15000 } = {}) {
+export function callTools(calls, { env = {}, unset = [], answer, timeoutMs = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     const childEnv = { ...process.env, ...env };
     for (const key of unset) delete childEnv[key];
@@ -86,6 +90,15 @@ export function callTools(calls, { env = {}, unset = [], timeoutMs = 15000 } = {
         try {
           msg = JSON.parse(line);
         } catch {
+          continue;
+        }
+        // The server asking the user something. Answering it is the whole reason
+        // this option exists: the tool call is blocked until we do.
+        if (msg.method === 'elicitation/create') {
+          child.stdin.write(
+            JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { action: answer ?? 'cancel' } }) +
+              '\n',
+          );
           continue;
         }
         if (msg.error) {
@@ -130,6 +143,14 @@ export function callTools(calls, { env = {}, unset = [], timeoutMs = 15000 } = {
 
 export const callTool = (name, args, opts) =>
   callTools([{ name, arguments: args }], opts).then(([text]) => text);
+
+/** A project with tickets already in it, written straight to disk. */
+export function seedTickets(project, tickets) {
+  for (const t of tickets) {
+    writeFileSync(`${project}/tickets/${t.branch}.json`, JSON.stringify(t, null, 2) + '\n', 'utf8');
+  }
+  return project;
+}
 
 /** The server's advertised tools, as Claude discovers them. */
 export function listTools() {

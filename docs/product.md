@@ -73,6 +73,20 @@ was worked in. `find_ticket` matches on what the task was about and hands back t
 directory, and the session to resume when there is one. A task whose session was
 never recorded says so, rather than offering a resume that goes nowhere.
 
+**The list of tasks is mostly dead ones.** Tickets only ever moved forward, so
+everything ever started stays in the listing and buries the one thing being worked
+on. The default listing shows unfinished work; finished, abandoned and archived
+tasks are one argument away. Archiving moves a ticket out of every listing without
+deleting it — nothing in the harness deletes anything, and a ticket is the only
+record of what a directory on disk was for.
+
+**Work you thought of before you could start it.** A task had to be begun to be
+recorded at all, so anything not started right now lived in your head. A ticket can
+be written down with a description and a branch name and nothing else: no workspace,
+no branch, no stage. Starting it later is the ordinary way of starting a task. And a
+task dropped or finished can be moved back to active, because deciding to carry on
+with something is not a reason to retype what it was about.
+
 ### Stages
 
 **Claude writes the code before you have seen the design.** Until the design is
@@ -101,7 +115,11 @@ the stage produced something, and asks the user at the four stages that need the
   sense of a guarantee the design cannot provide.
 - **Ship a reviewer, a test runner, or language support.** Codex is named in config
   and invoked, or switched off.
-- **Manage CI, deployment, releases, or issue trackers.**
+- **Manage CI, deployment, releases, or issue trackers.** A backlog entry is a
+  description and a branch name — no assignee, no priority, no labels, no board, and
+  nothing shared between people or projects.
+- **Delete anything.** Cleanup is archiving. Workspaces stay on disk until you
+  remove them yourself.
 - **Own your instruction files.** It reads and complements them.
 - **Reorganise your repositories, rewrite history, stash your work, or delete a
   workspace.**

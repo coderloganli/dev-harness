@@ -216,9 +216,46 @@ workspace. That is the one place where resolving from the working directory is
 right: the session demonstrably is there. See
 `docs/adr/0002-session-id-from-the-environment.md`.
 
-Workspaces are not deleted when a task finishes, so both workspaces and tickets
-accumulate. Managing them — listing, filtering by status, cleaning up finished
-ones — is a later addition, not part of the first version.
+**A ticket has a life of its own.** It is created by `start_task` at stage 1, or
+written down before there is any work at all: `add_ticket` records a description and
+a proposed branch with no workspace, no worktree and no stage. That is a backlog
+entry — `active`, at stage 0, which `describe` renders as `backlog`. The status set
+stays `active`, `done`, `abandoned`, because status says whether the work is live
+and stage says how far it has got, and a fourth status would say the second thing
+twice (`docs/adr/0004-backlog-is-a-stage-not-a-status.md`).
+
+From there `set_ticket_status` moves a ticket between `active` and `abandoned`, in
+either direction, so a dropped task can be reopened — reopening a finished one also
+clears `finished_at` and `authorised_at`, because a live task cannot also be one the
+user has already authorised sending out. It cannot write `done`. `done`
+is what stage 10 produces once the user has accepted the feature and authorised the
+pull request, and a management tool that could write it directly would be a way
+around both dialogs (`docs/adr/0006-management-cannot-produce-done.md`). Every
+change it does make raises the plugin's dialog first.
+
+**Cleanup is a move, not a delete.** `archive_ticket` moves the file into
+`tickets/archive/`, out of every listing, and back out again on request. Nothing is
+removed: not the ticket, not the workspace, not the worktree, not the branch. The
+archive being a directory rather than a field is what makes the default listing
+free — `allTickets` reads one directory, and archived tickets are simply not in it
+(`docs/adr/0005-archiving-moves-the-file.md`).
+
+These three are addressed by branch name rather than by the working directory, since
+managing a ticket means acting on one whose workspace you are not in. A branch name
+therefore reaches a file path without a directory creation to stop it on the way, so
+it is validated where it enters: lower-case letters, digits and hyphens, nothing
+that can traverse.
+
+**The default listing shows unfinished work.** `find_ticket` with no arguments
+returns active and backlog tickets, and nothing else; `done`, `abandoned`, `all` and
+the archive are all reachable by asking. It answers as a table, one line per ticket,
+and falls back to the full block when exactly one ticket matches — a search that
+lands on one ticket is someone trying to get back into it.
+
+Workspaces are still not deleted when a task finishes, so directories on disk
+accumulate whatever happens to their tickets. Reclaiming that space stays the user's
+own, deliberately: a worktree can hold uncommitted work, and nothing in the plugin
+can judge whether it matters.
 
 ---
 
@@ -270,7 +307,7 @@ ticket records each return, so a task that went around twice says so.
 
 ## 8. The server
 
-One MCP server, eight tools.
+One MCP server, eleven tools.
 
 | Tool | What it does |
 | :-- | :-- |
@@ -282,6 +319,9 @@ One MCP server, eight tools.
 | `get_status` | Report the current task: stage, workspace, repositories, what is refused |
 | `find_adr` | Search ADRs across the task's repositories |
 | `find_ticket` | Search tickets by description, or list them; return workspace path and session id |
+| `add_ticket` | Write down a backlog entry: a description and a proposed branch, and nothing else |
+| `set_ticket_status` | Move a ticket between active and abandoned, by name, after the user accepts |
+| `archive_ticket` | Move a ticket into the archive, or back out of it |
 
 Stage 10 is the one stage whose dialog does not advance anything: it authorises
 sending the work out, and `finish_task` closes the task once the pull requests
@@ -366,5 +406,8 @@ task that silently proceeds unsupervised is not.
   Claude does.
 - **No bundled tooling.** No reviewer, no test runner, no language support. Codex is
   named in config and invoked by name, or switched off.
-- **No workspace or ticket lifecycle management in version one.** Workspaces
-  accumulate. Cleaning up is a later feature.
+- **No deletion, of anything, ever.** Cleanup is archiving. Workspaces accumulate on
+  disk and removing them stays the user's own act.
+- **No issue tracker.** A backlog entry is a description and a branch name. No
+  assignee, no priority, no labels, no cross-project view, and no remote or shared
+  store — the tickets of one project are the files in one directory.
