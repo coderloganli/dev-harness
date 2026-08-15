@@ -47,8 +47,17 @@ export function cleanup() {
  * `answer` is what the user does at a dialog: 'accept' or 'decline'. A tool that
  * raises one blocks until it is answered, so without this the call never returns.
  * Left unset, an unexpected dialog is cancelled rather than hanging the suite.
+ *
+ * `dialogs` is an array every dialog's message is pushed into, in the order they
+ * were raised. It is how a test asserts both what the user was asked and how many
+ * times — a stage that asks twice is the defect, so the count has to be visible.
+ *
+ * Note that every call is written to stdin at once and the server's line handler is
+ * async, so calls in one invocation run concurrently. A test that needs one tool to
+ * finish before the next begins uses two invocations; the server holds no state in
+ * memory, so a fresh process reads the same ticket from disk.
  */
-export function callTools(calls, { env = {}, unset = [], answer, timeoutMs = 15000 } = {}) {
+export function callTools(calls, { env = {}, unset = [], answer, dialogs, timeoutMs = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     const childEnv = { ...process.env, ...env };
     for (const key of unset) delete childEnv[key];
@@ -95,6 +104,7 @@ export function callTools(calls, { env = {}, unset = [], answer, timeoutMs = 150
         // The server asking the user something. Answering it is the whole reason
         // this option exists: the tool call is blocked until we do.
         if (msg.method === 'elicitation/create') {
+          dialogs?.push(msg.params?.message);
           child.stdin.write(
             JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { action: answer ?? 'cancel' } }) +
               '\n',

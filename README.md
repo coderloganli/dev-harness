@@ -12,7 +12,7 @@ It governs three things, and they are independent of each other:
 - **Documents** — a short top-level design, a searchable record of decisions, and a
   throwaway document per task.
 - **Workspace** — one per task, isolated, findable again weeks later.
-- **Stages** — ten of them, four ending in a dialog you answer.
+- **Stages** — ten of them, three ending in a dialog you answer.
 
 > **Status: early.** The harness has been through one real task — its own, fixing
 > five defects that its first run exposed — and the ten stages, the refusal and the

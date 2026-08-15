@@ -44,7 +44,7 @@ session, which §3 addresses.
 
 **Stage control.** The current stage lives in the ticket, and the ticket is written
 by the server, not by Claude. To move on, Claude calls `advance_stage`; the server
-checks the stage's output exists before agreeing, and for the four stages that
+checks the stage's output exists before agreeing, and for the three stages that
 need the user, raises a dialog and waits. Claude can ask to advance. It cannot
 advance.
 
@@ -227,11 +227,12 @@ twice (`docs/adr/0004-backlog-is-a-stage-not-a-status.md`).
 From there `set_ticket_status` moves a ticket between `active` and `abandoned`, in
 either direction, so a dropped task can be reopened — reopening a finished one also
 clears `finished_at` and `authorised_at`, because a live task cannot also be one the
-user has already authorised sending out. It cannot write `done`. `done`
-is what stage 10 produces once the user has accepted the feature and authorised the
-pull request, and a management tool that could write it directly would be a way
-around both dialogs (`docs/adr/0006-management-cannot-produce-done.md`). Every
-change it does make raises the plugin's dialog first.
+user has already authorised sending out, and returns the stage to 9, which is where
+the dialog that authorises it lives. It cannot write `done`. `done` is what stage 10
+produces once the user has accepted the feature at stage 9, and a management tool
+that could write it directly would be a way around that acceptance
+(`docs/adr/0006-management-cannot-produce-done.md`). Every change it does make
+raises the plugin's dialog first.
 
 **Cleanup is a move, not a delete.** `archive_ticket` moves the file into
 `tickets/archive/`, out of every listing, and back out again on request. Nothing is
@@ -273,10 +274,10 @@ Ten stages. The stage lives in the ticket; the server owns it.
 | 6 | **Failing tests** | The tests exist, run, and fail; the user has seen the failure — **dialog** |
 | 7 | Implementation | The suite is green |
 | 8 | Codex reviews the code | Findings addressed; skipped when codex is off |
-| 9 | **User acceptance** | The user has run it and accepts — **dialog** |
+| 9 | **User acceptance** | The user has run it, accepts, and thereby authorises the pull request — **dialog** |
 | 10 | Pull request | The PR is open |
 
-Four stages end in a dialog the user answers — 5, 6, 9 and 10. The rest end when Claude calls
+Three stages end in a dialog the user answers — 5, 6 and 9. The rest end when Claude calls
 `advance_stage` and the server agrees the stage's output exists — the task document
 has the section, the ADR files are there, the test command was run and reported
 failures.
@@ -303,6 +304,14 @@ itself stays a two-button accept/decline, because putting the choice in the dial
 would cost a second click on every acceptance to serve the case that fails. The
 ticket records each return, so a task that went around twice says so.
 
+**What a dialog says.** The terminal cannot be scrolled while a dialog is open, so
+whatever Claude presented just before it is out of reach until it is answered. Each
+message therefore carries its own context — what is being approved, and what
+accepting causes — rather than pointing at a conversation the user cannot see. The
+plugin cannot make the dialog scrollable: `elicitation/create` carries a message and
+a schema, and how it is drawn belongs to the client
+(`docs/adr/0008-a-dialog-says-what-accepting-does.md`).
+
 ---
 
 ## 8. The server
@@ -323,10 +332,17 @@ One MCP server, eleven tools.
 | `set_ticket_status` | Move a ticket between active and abandoned, by name, after the user accepts |
 | `archive_ticket` | Move a ticket into the archive, or back out of it |
 
-Stage 10 is the one stage whose dialog does not advance anything: it authorises
-sending the work out, and `finish_task` closes the task once the pull requests
-exist. Splitting them keeps the ticket honest — a task is not done because
-permission was given, but because the work left the machine.
+Stage 9's acceptance is also the authorisation to send the work out: accepting sets
+`authorised_at` in the same write as the stage change, and stage 10 asks nothing.
+Two dialogs on consecutive screens, about the same work, with nothing happening
+between them, made the acceptance weaker rather than stronger — a confirmation that
+always follows another confirmation stops being read
+(`docs/adr/0007-one-acceptance-authorises-the-pull-request.md`).
+
+`finish_task` is still separate, and still refuses without `authorised_at`. That
+keeps the ticket honest — a task is not done because permission was given, but
+because the work left the machine. What went away is the second question, not the
+second record.
 
 An advance that is waiting on a dialog holds the task: a second `advance_stage`
 arriving meanwhile is turned away rather than queued, so one stage never raises two
