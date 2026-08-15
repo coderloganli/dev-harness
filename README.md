@@ -1,5 +1,7 @@
 # Claude Code Harness
 
+[![test](https://github.com/coderloganli/dev-harness/actions/workflows/test.yml/badge.svg)](https://github.com/coderloganli/dev-harness/actions/workflows/test.yml)
+
 A harness for Claude Code: it makes Claude build software the way a careful engineer
 does — read the design first, agree it before writing code, write the failing test
 before the feature, work in a scratch space that cannot damage anything, and keep
@@ -16,7 +18,7 @@ It governs three things, and they are independent of each other:
 
 > **Status: early.** The harness has been through one real task — its own, fixing
 > five defects that its first run exposed — and the ten stages, the refusal and the
-> approval dialogs all held. There is no marketplace entry yet.
+> approval dialogs all held.
 
 ## Why
 
@@ -111,6 +113,19 @@ session it was worked in. Weeks later, ask for "that task about search ranking" 
 `find_ticket` hands back the directory to return to, and the session to resume when
 one was recorded — a task whose session was not says so, rather than offering a
 resume that goes nowhere.
+
+## Installing
+
+The repository is its own marketplace, so adding it and installing from it are two
+lines in Claude Code:
+
+```
+/plugin marketplace add coderloganli/dev-harness
+/plugin install harness@harness
+```
+
+If the install summary says `Run /reload-plugins to activate.`, run that too. To pick
+up a later version, `/plugin marketplace update harness`.
 
 ## Getting started
 

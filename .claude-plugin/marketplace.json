@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "harness",
+  "owner": {
+    "name": "coderloganli",
+    "email": "coder_logan_li@outlook.com"
+  },
+  "plugins": [
+    {
+      "name": "harness",
+      "source": "./",
+      "description": "Governs a project's documents, a task's workspace, and the ten stages a task passes through.",
+      "version": "0.2.0",
+      "license": "MIT",
+      "keywords": ["workflow", "worktree", "adr", "documentation", "code-review"]
+    }
+  ]
+}

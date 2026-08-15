@@ -26,6 +26,12 @@ something a hook can do.
 | **Templates** | Skeletons for the documents `init` creates |
 | **Project config** | A few facts about one project |
 
+The repository is also its own marketplace: `.claude-plugin/marketplace.json` lists
+one plugin whose source is the repository root, so `/plugin marketplace add` and
+`/plugin install` reach it without a second repository to keep in step. Its `version`
+is what tells an installed copy that a newer one exists, so it moves with
+`plugin.json`'s.
+
 The line that matters: **a skill is text Claude may or may not follow; the server
 and the hooks are programs that run either way.** Every rule below is placed on one
 side of that line on purpose.
