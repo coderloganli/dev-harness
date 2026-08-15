@@ -192,9 +192,9 @@ test('21b — reopening a done ticket clears the marks of finishing', async () =
 
   const t = read(project, 'shipped');
   assert.equal(t.status, 'active');
-  assert.equal(t.stage, 10, 'the work is back in hand at the stage it stopped at');
+  assert.equal(t.stage, 9, 'stage 9 holds the only dialog that can authorise it again');
   assert.ok(!t.finished_at, 'finished_at is cleared');
-  assert.ok(!t.authorised_at, 'sending it out again must go through the stage 10 dialog again');
+  assert.ok(!t.authorised_at, 'sending it out again must go through the acceptance again');
   assert.deepEqual(t.pull_requests, ['https://example.invalid/pr/1'], 'those pull requests exist');
 });
 

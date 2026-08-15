@@ -12,7 +12,7 @@ It governs three things, and they are independent of each other:
 - **Documents** — a short top-level design, a searchable record of decisions, and a
   throwaway document per task.
 - **Workspace** — one per task, isolated, findable again weeks later.
-- **Stages** — ten of them, four ending in a dialog the user answers.
+- **Stages** — ten of them, three ending in a dialog the user answers.
 
 ## Who it is for
 
@@ -104,7 +104,7 @@ document.
 
 **The procedure dissolves over a long task.** The current stage is held by the
 plugin, not by Claude's memory of it. Claude can ask to advance; the plugin checks
-the stage produced something, and asks the user at the four stages that need them.
+the stage produced something, and asks the user at the three stages that need them.
 
 ## What it deliberately does not do
 

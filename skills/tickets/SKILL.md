@@ -60,7 +60,9 @@ anywhere in the project. Reopening a task that was dropped, or one that was fini
 and turned out not to be, is `status: "active"`.
 
 It cannot set `done`. A task becomes done by being finished: the user accepts it at
-stage 9, authorises the pull request at stage 10, and `finish_task` records it.
+stage 9 — which is also the authorisation to open the pull request — and
+`finish_task` records it. Reopening a finished task returns it to stage 9, so that
+acceptance is given again before the work leaves the machine a second time.
 
 The user is asked before anything is written, so pass their `reason` — it is what the
 dialog shows them and what the history records. Nothing is deleted either way: the

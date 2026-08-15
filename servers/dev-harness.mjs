@@ -324,7 +324,7 @@ const TOOLS = [
     description:
       'Move a ticket between active and abandoned, by branch, from anywhere in the project. Reopening ' +
       'is status: "active" on an abandoned or done ticket. It cannot set done — that is finish_task, ' +
-      'after the stage 10 authorisation. The user is asked before anything is written.',
+      'after the user accepts at stage 9. The user is asked before anything is written.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -368,7 +368,9 @@ const TOOLS = [
   },
   {
     name: 'finish_task',
-    description: 'Mark the task done once the pull requests are open. Call at the end of stage 10.',
+    description:
+      'Mark the task done once the pull requests are open. Call at the end of stage 10, which the user ' +
+      'authorised by accepting at stage 9.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -610,7 +612,7 @@ async function callTool(name, args = {}) {
       return fail(`The task is at ${describe(ticket.stage)}. Finish the stages before calling finish_task.`);
     if (!ticket.authorised_at)
       return fail(
-        'The user has not authorised the pull request yet. Call advance_stage at stage 10 first — that is the dialog that authorises it.',
+        'The user has not accepted the work yet. Call advance_stage at stage 9 first — accepting there is what authorises the pull request.',
       );
     ticket.status = 'done';
     ticket.finished_at = new Date().toISOString();
@@ -725,8 +727,9 @@ async function manage(name, project, args) {
     // happen wastes the one interruption the plugin is allowed.
     if (args.status === 'done')
       return fail(
-        'A ticket becomes done by finishing: the user accepts the feature at stage 9, authorises the pull ' +
-          'request at stage 10, and finish_task records it. set_ticket_status takes active or abandoned.',
+        'A ticket becomes done by finishing: the user accepts the feature at stage 9 — which is also the ' +
+          'authorisation to open the pull request — and finish_task records it. set_ticket_status takes ' +
+          'active or abandoned.',
       );
     if (!STATUSES.includes(args.status) || args.status === 'done')
       return fail(`Not a status this tool sets: ${args.status}. Use active or abandoned.`);
@@ -741,16 +744,22 @@ async function manage(name, project, args) {
     if (answer?.action !== 'accept') return ok(`Declined. ${args.branch} is unchanged.`);
 
     const was = ticket.status;
+    // Read before the reopening below moves it, so the history records the rollback
+    // that happened rather than the stage it landed on.
+    const wasAt = ticket.stage;
     ticket.status = args.status;
-    // A live task cannot also be one the user has already authorised sending out.
-    // The pull requests themselves stay: they exist, and this is the record of it.
+    // A live task cannot also be one the user has already authorised sending out, and
+    // stage 9 holds the only dialog that can authorise it again — left at stage 10 it
+    // would be unauthorisable and finish_task would refuse it forever. The pull
+    // requests themselves stay: they exist, and this is the record of it.
     if (reopening && was === 'done') {
       delete ticket.finished_at;
       delete ticket.authorised_at;
+      ticket.stage = 9;
     }
     ticket.history.push({
       at: new Date().toISOString(),
-      from: ticket.stage,
+      from: wasAt,
       to: ticket.stage,
       note: `${was} -> ${args.status}${args.reason ? `: ${args.reason}` : ''}`,
     });
@@ -760,7 +769,7 @@ async function manage(name, project, args) {
       [
         `${args.branch} is ${args.status}, at ${describe(ticket.stage)}.`,
         reopening && was === 'done'
-          ? 'finished_at and authorised_at are cleared: sending it out again goes through the stage 10 dialog again.'
+          ? 'finished_at and authorised_at are cleared and it is back at stage 9: sending it out again goes through the acceptance again.'
           : '',
         reopening ? `Continue it from ${ticket.workspace ?? 'its workspace'}.` : 'Nothing was deleted.',
       ]
@@ -774,23 +783,33 @@ async function advance({ project, workspace, ticket, args }) {
     const config = readConfig(project);
     const current = stage(ticket.stage);
 
-    // Stage 10's dialog authorises sending the work out; the stage does not
-    // advance past it. finish_task closes the task once the PRs exist.
+    // Stage 10 asks nothing and advances nothing: it is the last stage, and being
+    // here normally means stage 9 was accepted, which is the authorisation.
+    // finish_task closes the task once the pull requests exist.
     if (ticket.stage === LAST_STAGE) {
-      if (ticket.authorised_at)
-        return ok('Already authorised. Open the pull requests, then call finish_task.');
-      const answer = await elicit(current.dialog(ticket));
-      if (answer?.action !== 'accept') {
-        ticket.history.push({ at: new Date().toISOString(), from: LAST_STAGE, to: 9, note: 'declined' });
+      // Unless it was not. A ticket from before the acceptance and the authorisation
+      // became one answer can be sitting at stage 10 having never been authorised —
+      // stage 10 used to be where that was asked. Saying "authorised" to that ticket
+      // would send Claude to open pull requests on work nobody accepted, and
+      // finish_task would refuse it afterwards anyway. It goes back to the one stage
+      // that can authorise it.
+      if (!ticket.authorised_at) {
+        ticket.history.push({
+          at: new Date().toISOString(),
+          from: LAST_STAGE,
+          to: 9,
+          note: 'never authorised: stage 10 no longer asks',
+        });
         ticket.stage = 9;
         writeTicket(ticket);
-        return ok(`Declined. Back to ${describe(9)}.`);
+        return ok(
+          `This task is at stage 10 but was never accepted — it predates the acceptance and the ` +
+            `authorisation becoming one answer. Back to ${describe(9)}. ${stage(9)?.intent ?? ''}`,
+        );
       }
-      ticket.authorised_at = new Date().toISOString();
-      writeTicket(ticket);
       return ok(
-        'Authorised. In each repository: commit with a message describing the change and why, push the branch, ' +
-          'and open a pull request. Then call finish_task with the pull request URLs.',
+        'Authorised at stage 9. In each repository: commit with a message describing the change and why, ' +
+          'push the branch, and open a pull request. Then call finish_task with the pull request URLs.',
       );
     }
 
@@ -812,6 +831,10 @@ async function advance({ project, workspace, ticket, args }) {
         writeTicket(ticket);
         return ok(`Declined. Back to ${describe(to)}. ${stage(to)?.intent ?? ''}`);
       }
+      // Accepting a stage that authorises is also the authorisation to send the work
+      // out. It is written in the same writeTicket as the stage change below, so a
+      // ticket is never at stage 10 unauthorised.
+      if (current.authorises) ticket.authorised_at = new Date().toISOString();
     }
 
     let next = ticket.stage + 1;

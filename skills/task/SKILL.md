@@ -10,8 +10,9 @@ One task, ten stages, one workspace. The stage is held by the harness, not by yo
 memory of it: call `advance_stage` to move on, and it will refuse unless the stage
 actually produced something.
 
-Three stages end with a dialog the user answers — 5, 6 and 10 — plus stage 9. You
-do not write those dialogs and you do not answer them.
+Three stages end with a dialog the user answers — 5, 6 and 9. You do not write those
+dialogs and you do not answer them. Stage 9 is the only acceptance: it approves the
+work and authorises the pull request in one answer, and stage 10 asks nothing.
 
 **Before stage 5 is approved, writing anything inside a repository is refused**,
 except `docs/architecture.md`, `docs/product.md`, and `docs/adr/`. The task
@@ -174,17 +175,20 @@ Follow the project's `try` value from `config.json` to hand the user something t
 can exercise themselves: the command, the URL, the input to try. The value may be a
 command or a sentence — some projects have nothing to launch. Then `advance_stage`.
 
+This is the only acceptance the task asks for. Accepting it also authorises the pull
+request, so present the work as what it is: the last thing the user is asked.
+
 If the user declines, ask them one question — is this a design problem or an
 implementation problem? — then call `return_to_stage` with 3 or 7 and their reason.
 
-## Stage 10 — Pull request — DIALOG
+## Stage 10 — Pull request
 
-Call `advance_stage`. One dialog covers the whole stage; the user accepted the
-feature at stage 9 and this stage sends it out.
+No dialog. The acceptance at stage 9 authorised this stage; asking again about the
+same work would be asking twice.
 
-Once it is authorised, in each repository the task touched: commit with a message
-describing the change and why, push the branch, and open a pull request. Then call
-`finish_task` with the pull request URLs.
+In each repository the task touched: commit with a message describing the change and
+why, push the branch, and open a pull request. Then call `finish_task` with the pull
+request URLs.
 
 Leave the workspace where it is. Do not delete it, and do not remove the worktrees.
 
