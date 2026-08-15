@@ -1,4 +1,4 @@
-// Test cases 9-11: conventions the plugin states about itself, asserted against the
+// Test cases 9-11 and 38: conventions the plugin states about itself, asserted against the
 // repository so that a fix cannot look done while a stale copy survives somewhere.
 
 import assert from 'node:assert/strict';
@@ -63,5 +63,26 @@ test('11 — one product document, under 200 lines', () => {
     linking.map((f) => f.slice(REPO.length + 1).split('\\').join('/')),
     [],
     'nothing should still link to docs/prd.md',
+  );
+});
+
+test('38 — one version, declared in three files, and an install line that reaches it', () => {
+  const plugin = JSON.parse(read('.claude-plugin/plugin.json'));
+  const marketplace = JSON.parse(read('.claude-plugin/marketplace.json'));
+  const pkg = JSON.parse(read('package.json'));
+
+  // The marketplace version is what tells an installed copy a newer one exists. A
+  // release that bumps plugin.json alone ships to nobody, and nothing at runtime
+  // would say so.
+  const entry = marketplace.plugins.find((p) => p.name === plugin.name);
+  assert.ok(entry, `marketplace.json must list a plugin named ${plugin.name}`);
+  assert.equal(entry.version, plugin.version, 'the marketplace entry must carry the plugin.json version');
+  assert.equal(pkg.version, plugin.version, 'package.json must carry the plugin.json version');
+
+  // README tells the user to type `/plugin install <plugin>@<marketplace>`.
+  assert.match(
+    read('README.md'),
+    new RegExp(`/plugin install ${plugin.name}@${marketplace.name}\\b`),
+    'the README install line must name the plugin and the marketplace as they are declared',
   );
 });
