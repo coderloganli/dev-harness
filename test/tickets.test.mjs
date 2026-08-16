@@ -497,9 +497,17 @@ test('32 — the architecture document describes the lifecycle it now has', () =
   assert.doesNotMatch(architecture, /No workspace or ticket lifecycle management in version one/);
   assert.match(architecture, /eleven tools/);
   for (const tool of ['add_ticket', 'set_ticket_status', 'archive_ticket']) {
-    assert.match(architecture, new RegExp(`\`${tool}\``), `the tool table lists ${tool}`);
+    assert.match(architecture, new RegExp(`\`${tool}\``), `§8 names ${tool}`);
   }
-  assert.match(architecture, /No deletion, of anything, ever/, 'it still promises nothing is deleted');
+
+  // The promise that nothing is deleted is the product's, and is asserted where it
+  // is made. The architecture states the consequence it has to live with.
+  assert.match(
+    readFileSync(join(REPO, 'docs/product.md'), 'utf8'),
+    /\*\*Delete anything\.\*\* Cleanup is archiving/,
+    'it still promises nothing is deleted',
+  );
+  assert.match(architecture, /Workspaces are never deleted/);
 
   const product = readFileSync(join(REPO, 'docs/product.md'), 'utf8').split(/\r?\n/).length;
   assert.ok(product <= 200, `docs/product.md is ${product} lines; the limit is about 200`);

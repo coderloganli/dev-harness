@@ -1,6 +1,6 @@
 # Architecture
 
-<!-- Keep this under about 200 lines. Every task reads it in full, and a document
+<!-- Keep this under about 350 lines. Every task reads it in full, and a document
      too long to read in one sitting stops being read. Detail that belongs to one
      decision goes in docs/adr/ instead. -->
 
