@@ -84,8 +84,10 @@ And for the product design, exactly one copy:
 Never overwrite a file that exists. Report which ones you created and which were
 already there.
 
-Both top-level documents are held to about 200 lines. Say so to the user: the limit
-is the point, because they are read by every task.
+The top-level documents are bounded: product design at about 200 lines, architecture
+at about 350, because how a system is built carries reference material that prose
+cannot replace. Say so to the user: the limit is the point, because they are read by
+every task.
 
 ## Step 5 — Ask for what cannot be discovered
 

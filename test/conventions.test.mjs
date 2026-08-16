@@ -49,6 +49,12 @@ test('10 — no stale run naming survives', () => {
   );
 });
 
+// The bound each top-level document is held to. They differ because the jobs do, and
+// they are here because only one of them used to be checked: architecture.md reached
+// 456 lines while three places in the project said the limit was 200. A limit nothing
+// checks is a wish.
+const LIMITS = { 'docs/product.md': 200, 'docs/architecture.md': 350 };
+
 test('11 — one product document, under 200 lines', () => {
   assert.ok(!existsSync(join(REPO, 'docs/prd.md')), 'docs/prd.md should be gone');
   assert.ok(existsSync(join(REPO, 'docs/product.md')), 'docs/product.md should exist');
@@ -64,6 +70,21 @@ test('11 — one product document, under 200 lines', () => {
     [],
     'nothing should still link to docs/prd.md',
   );
+});
+
+test('53 — both top-level documents are within the bound stated for them', () => {
+  for (const [doc, limit] of Object.entries(LIMITS)) {
+    const lines = read(doc).split(/\r?\n/).length;
+    assert.ok(lines <= limit, `${doc} is ${lines} lines; the limit is ${limit}`);
+
+    // A number stated in one place and enforced in another drifts apart silently,
+    // which is the failure this whole file exists to catch.
+    const stated = new RegExp(`\\b${limit}\\b`);
+    assert.match(read(doc), stated, `${doc} should say the bound it is held to`);
+  }
+
+  assert.match(read('README.md'), /200 lines, architecture at\s+350/);
+  assert.match(read('skills/init/SKILL.md'), /about 200 lines, architecture\s+at about 350/);
 });
 
 test('38 — one version, declared in three files, and an install line that reaches it', () => {

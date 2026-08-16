@@ -35,9 +35,10 @@ in.
 **The design document nobody reads.** An architecture document grows until reading
 it is a project of its own, so nobody does — including Claude, which then infers
 the design from whatever files it happened to open. Two top-level documents,
-architecture and product design, each held to about 200 lines. The limit is the
+architecture and product design, both bounded — 350 lines and 200. The limit is the
 feature: a document short enough to read in one sitting can be expected of every
-task, and that expectation is what makes it worth maintaining.
+task, and that expectation is what makes it worth maintaining. A limit nothing checks
+is a wish, so both are held by a test.
 
 **The design document that is no longer true.** Updating it is always a separate
 task, and separate tasks do not get scheduled. A task that changes what those

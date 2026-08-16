@@ -148,10 +148,17 @@ Three kinds, with three lifetimes.
 | **ADR** | `docs/adr/` in the repo the decision concerns | The project's life | Written during the design stage, as decisions are made |
 | **Task document** | `task.md` at the workspace root | The task | Claude, throughout |
 
-**Top-level design.** Two documents, each under about 200 lines. The limit is the
-point: a document nobody can read in one sitting stops being read, and these two are
-meant to be read by every task. When a task changes what they say, the change is part
-of that task.
+**Top-level design.** Two documents, both bounded, because a document nobody can read
+in one sitting stops being read and these two are meant to be read by every task. The
+bounds differ because the jobs do: **product design, 200 lines**, since what a product
+is for and will not do is prose that gets longer only by repeating itself;
+**architecture, 350**, because how a system is built has reference material — a
+layout, a stage table, the exact paths a rule names — that a reader comes back to and
+that cannot be compressed into sentences.
+
+Both numbers are enforced by a test rather than asked for, since this document reached
+456 lines while three places in the project said the limit was 200. When a task
+changes what these documents say, the change is part of that task.
 
 **ADR.** One decision per file: context, decision, reasoning. Written when the
 decision is made, not reconstructed afterwards, and edited in place when a decision

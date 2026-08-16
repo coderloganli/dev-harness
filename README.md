@@ -98,9 +98,10 @@ alone.
 | Decisions | `docs/adr/` in the repository they concern | The project |
 | The task | `task.md` at the workspace root | The task |
 
-The two top-level documents are held to about 200 lines each. The limit is the
-feature: they are read in full by every task, and a document too long to read in one
-sitting stops being read.
+Both top-level documents are bounded — product design at 200 lines, architecture at
+350, the difference being that how a system is built has reference material that
+prose cannot replace. The limit is the feature: they are read in full by every task,
+and a document too long to read in one sitting stops being read.
 
 Decision records are searched, not browsed — `find_adr` returns the few that bear on
 the question. They are written during the design stage as decisions are made, and
