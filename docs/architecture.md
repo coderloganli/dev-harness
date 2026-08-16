@@ -416,6 +416,27 @@ initiative.
 Failing closed is the right direction: a task that cannot proceed is recoverable, a
 task that silently proceeds unsupervised is not.
 
+**The refusal hook not working.** The other direction, and stated because the
+sentence above would otherwise be read as covering it. The hook fails open: if it
+crashes, times out, writes something that is not valid JSON, or cannot parse the
+ticket that would have told it the stage, the write proceeds. Claude Code treats a
+crashed or timed-out `PreToolUse` hook as no decision rather than as a refusal, and
+`readTicket` returning null for an unparseable file is indistinguishable to the hook
+from a project that never adopted the harness.
+
+That is the intended direction here, for the same reason the server's is the
+opposite. The server failing closed stops a task; the hook failing closed would stop
+a project — a single corrupt file in `tickets/` would make every repository in it
+unwritable, including the documents the harness tells you to go and fix. And the
+failure is not silent for long: a stage that will not advance is noticed within one
+task.
+
+What it costs is worth naming plainly. **A refusal that fails open is not a
+guarantee.** It is the same claim §2 makes about circumvention, arrived at from the
+other side: the harness keeps an honest process honest, and a broken hook is not
+distinguishable from an absent one. Test cases 49-52 hold the refusal itself, and 52
+holds this degradation, so it stays a decision with a case behind it.
+
 ---
 
 ## 11. Deliberately not in the design
