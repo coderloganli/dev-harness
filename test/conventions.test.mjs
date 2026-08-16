@@ -87,6 +87,21 @@ test('53 — both top-level documents are within the bound stated for them', () 
   assert.match(read('skills/init/SKILL.md'), /about 200 lines, architecture\s+at about 350/);
 });
 
+test('54 — every local file the README points at is there', () => {
+  const readme = read('README.md');
+
+  // ![alt](path) and [text](path), minus anything with a scheme — a broken image in
+  // the first screen of the README is the most visible way for this project to be
+  // caught saying something untrue about itself.
+  const links = [...readme.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)]
+    .map((m) => m[1].split('#')[0].trim())
+    .filter((target) => target && !/^[a-z][a-z0-9+.-]*:/i.test(target));
+
+  assert.ok(links.length > 0, 'the README should point at something local');
+  const missing = links.filter((target) => !existsSync(join(REPO, target)));
+  assert.deepEqual(missing, [], 'the README points at files that do not exist');
+});
+
 test('38 — one version, declared in three files, and an install line that reaches it', () => {
   const plugin = JSON.parse(read('.claude-plugin/plugin.json'));
   const marketplace = JSON.parse(read('.claude-plugin/marketplace.json'));
