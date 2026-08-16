@@ -9,6 +9,13 @@ the documentation true.
 
 Installed as a plugin, it answers to `harness`: `/harness:task`, `/harness:status`.
 
+![The failing tests are written first, they fail, and you are the one who sees the
+failure before any code is written](docs/demo/tests-and-gate.gif)
+
+Stage 6 of a real task. The tests are written before the feature, they fail for the
+reason they were meant to, and the question you are asked is the plugin's — Claude
+neither writes it nor sees your answer. Declining sends the task back.
+
 It governs three things, and they are independent of each other:
 
 - **Documents** — a short top-level design, a searchable record of decisions, and a
@@ -16,9 +23,11 @@ It governs three things, and they are independent of each other:
 - **Workspace** — one per task, isolated, findable again weeks later.
 - **Stages** — ten of them, three ending in a dialog you answer.
 
-> **Status: early.** The harness has been through one real task — its own, fixing
-> five defects that its first run exposed — and the ten stages, the refusal and the
-> approval dialogs all held.
+> **Status: early.** The harness has been through two tasks. Its own — fixing five
+> defects that its first run exposed — and the one above, run end to end on a
+> separate repository it had never seen: interview, design, decision records,
+> failing tests, implementation, acceptance, commit. The ten stages and the three
+> dialogs all held, and no source file was written before the design was approved.
 
 ## Why
 
@@ -50,6 +59,12 @@ Claude can ask to move on. It cannot move on: the stage is held by the plugin, a
 advancing is refused unless the stage actually produced something. The stages in
 bold end with a dialog whose wording the plugin owns — Claude cannot phrase the
 question you are asked, and your answer never passes through it.
+
+![The design and its test cases are presented, and stage 5 asks whether to accept
+them before any code may be written](docs/demo/design-gate.gif)
+
+Stage 5, from the same task: the test cases are laid out, and accepting them is what
+unlocks writing code in the repository. Until then the refusal below is in force.
 
 ## The one refusal
 
