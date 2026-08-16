@@ -65,15 +65,16 @@ test('50 — the refusal does not depend on how the path is spelled', () => {
   const target = `${workspace}/api/src/search.ts`;
 
   const spellings = [
-    ['separators', target.split('/').join('\\')],
     ['dot segments', `${workspace}/api/../api/src/search.ts`],
     ['a trailing dot segment', `${workspace}/api/src/./search.ts`],
   ];
 
-  // Windows paths are case-insensitive, so these name the same file. On a
-  // case-sensitive file system they name different files and must not be folded.
+  // These spell the same file only on Windows. Elsewhere a backslash is an ordinary
+  // character in a name and case is significant, so each names a different file, and
+  // folding them would refuse writes the harness never meant to refuse.
   if (process.platform === 'win32') {
     spellings.push(
+      ['separators', target.split('/').join('\\')],
       ['a lower-case drive letter', target[0].toLowerCase() + target.slice(1)],
       ['an upper-cased segment', target.replace('/api/', '/API/')],
       ['an upper-cased workspace', target.replace(workspace, workspace.toUpperCase())],
@@ -96,7 +97,6 @@ test('51 — the documentation paths stay writable, however they are spelled', (
 
   for (const path of writable) {
     assert.equal(ask(path), 'allow', `${path} must stay writable in every stage`);
-    assert.equal(ask(path.split('/').join('\\')), 'allow', `${path} must stay writable in every stage`);
   }
 
   // After the design is approved nothing is refused at all.
